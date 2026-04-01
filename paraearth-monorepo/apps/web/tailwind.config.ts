@@ -9,6 +9,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        'element-h': '#FF4444',
+        'element-he': '#CCFF00',
+        'element-ne': '#FF6600',
+        'element-o': '#00CCCC',
         'glass-bg': 'rgba(255, 255, 255, 0.12)',
       },
     },
