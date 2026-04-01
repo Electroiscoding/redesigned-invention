@@ -1,0 +1,6 @@
+{
+  "title": "API Burn Rate",
+  "panels": [
+    { "type": "stat", "title": "Token Cost / Min" }
+  ]
+}

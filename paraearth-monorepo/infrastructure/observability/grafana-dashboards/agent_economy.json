@@ -1,0 +1,6 @@
+{
+  "title": "Agent Economy",
+  "panels": [
+    { "type": "timeseries", "title": "Trade Volume (Simulated Gold)" }
+  ]
+}
