@@ -1,0 +1,22 @@
+{
+  "name": "paraearth-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Massively multi-agent, photorealistic parallel Earth simulator",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.5.3",
+    "turbo": "^1.11.3",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
