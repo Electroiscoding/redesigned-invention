@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'orchestration'
+    static_configs:
+      - targets: ['localhost:8000']
+  - job_name: 'world_server'
+    static_configs:
+      - targets: ['localhost:2567']
