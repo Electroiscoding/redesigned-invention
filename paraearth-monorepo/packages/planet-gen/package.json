@@ -1,0 +1,9 @@
+{
+  "name": "@paraearth/planet-gen",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "dependencies": {
+    "typescript": "^5.3.3"
+  }
+}

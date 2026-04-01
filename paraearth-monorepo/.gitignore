@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.next/
+*.log
+.env
+.env.local
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+target/
+**/*/target/
