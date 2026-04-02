@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-// In a real application, this would come from a KMS/HSM service.
-// This is a stubbed 32-byte key for demonstration purposes.
-const HSM_KEY = Buffer.from('12345678901234567890123456789012');
-
 export async function POST(request: Request) {
+  // In a real application, this must come from a secure KMS/HSM service.
+  // We throw an error here to prevent production deployment of hardcoded keys.
+  const hsmKeyString = process.env.HSM_ENCRYPTION_KEY;
+  if (!hsmKeyString || hsmKeyString.length !== 32) {
+      return NextResponse.json(
+        { error: 'Internal Server Error: HSM_ENCRYPTION_KEY is not securely configured.' },
+        { status: 500 }
+      );
+  }
+  const HSM_KEY = Buffer.from(hsmKeyString);
+
   try {
     const { openrouter_key } = await request.json();
 
