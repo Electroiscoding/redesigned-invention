@@ -1,14 +1,42 @@
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
+from contextlib import asynccontextmanager
 from core.config import settings
 import asyncio
+import asyncpg
 import random
+import logging
 
-app = FastAPI(title="ParaEarth Orchestration Service", version="1.0.0")
+logger = logging.getLogger(__name__)
+
+# Global dependencies
+db_pool = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Initializing ParaEarth Orchestration Backend...")
+    global db_pool
+    try:
+        db_pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=5, max_size=20)
+        logger.info("PostgreSQL (pgvector) connection pool established.")
+    except Exception as e:
+        logger.warning(f"Could not connect to database (Expected if running stub mode): {e}")
+
+    # Setup Agent Orchestration Service instance here...
+
+    yield
+
+    # Teardown
+    if db_pool:
+        await db_pool.close()
+        logger.info("Database connection pool closed.")
+
+app = FastAPI(title="ParaEarth Orchestration Service", version="1.0.0", lifespan=lifespan)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "orchestration"}
+    return {"status": "ok", "db_connected": db_pool is not None}
 
 @app.get("/api/agent/{agent_id}/reasoning-stream")
 async def get_reasoning_stream(agent_id: str):
