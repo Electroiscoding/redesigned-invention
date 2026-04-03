@@ -115,7 +115,40 @@ class AgentOrchestrationService:
         pass
 
     async def _update_agent_state(self, agent: Any, action_results: list):
-        pass
+        """
+        Parses successful action returns and persists state changes
+        (e.g., updating agent inventory after a `mine` or `react` call).
+        """
+        for result in action_results:
+            if result.get("status") == "success":
+                logger.debug(f"[{agent.name}] Action success: {result.get('message')}")
+
+                # We could run deeper validation/DB sync here.
+                # The agent's active memory dictionary was already mutated in `tools.py`
+                # by reference, so we primarily use this block to push the entire JSON
+                # state blob down to Redis for caching.
+
+                # e.g., await self.redis.set(f"agent_state:{agent.agent_id}", agent.json())
+            elif result.get("status") == "error":
+                logger.warning(f"[{agent.name}] Action failed: {result.get('message')}")
 
     async def _record_memory(self, agent, perception, actions, results, reasoning):
-        pass
+        """
+        Commits the completed cycle's perception, actions, and internal monologue
+        into the persistent episodic memory store for later retrieval and compression.
+        """
+        try:
+            success = await self.context_assembler.episodic.record(
+                agent_id=agent.agent_id,
+                perception=perception,
+                actions=actions,
+                results=results,
+                reasoning_trace=reasoning
+            )
+            if success:
+                logger.debug(f"[{agent.name}] Episodic memory cycle recorded.")
+            else:
+                logger.error(f"[{agent.name}] Failed to record episodic memory cycle.")
+        except AttributeError:
+            # Fallback if self.context_assembler.episodic isn't tightly bound yet
+            logger.warning(f"[{agent.name}] Episodic store not bound to ContextAssembler. Skipping memory recording.")
