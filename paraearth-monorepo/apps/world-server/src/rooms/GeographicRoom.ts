@@ -1,5 +1,6 @@
 import { Room, Client } from "colyseus";
 import { Schema, MapSchema, type } from "@colyseus/schema";
+import { WasmHost } from "../ers-bridge/wasm_host";
 
 export class Position extends Schema {
   @type("number") x: number = 0;
@@ -24,9 +25,19 @@ export class GeographicState extends Schema {
 }
 
 export class GeographicRoom extends Room<GeographicState> {
-  onCreate(options: any) {
+  private wasmHost: WasmHost;
+
+  constructor() {
+    super();
+    this.wasmHost = new WasmHost();
+  }
+
+  async onCreate(options: any) {
     this.setState(new GeographicState());
     this.maxClients = 100;
+
+    // Initialize Rust ERS WASM module
+    await this.wasmHost.initialize();
 
     // Set up basic simulation loop 20 Hz
     this.setSimulationInterval((deltaTime) => this.update(deltaTime), 50);
@@ -37,6 +48,11 @@ export class GeographicRoom extends Room<GeographicState> {
   update(deltaTime: number) {
     // Advance environmental time
     this.state.environment.timeOfDay += deltaTime * 0.001; // Scale factor stub
+
+    // Advance cell chemistry simulation
+    // This executes Arrhenius rate calculations per voxel across the active shard
+    const simTimeDelta = deltaTime * 0.001;
+    this.wasmHost.advanceChemistry(simTimeDelta);
   }
 
   onJoin(client: Client, options: any) {

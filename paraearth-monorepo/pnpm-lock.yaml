@@ -20,6 +20,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@paraearth/planet-gen':
+        specifier: workspace:*
+        version: link:../../packages/planet-gen
       '@paraearth/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types

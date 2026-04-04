@@ -5,9 +5,11 @@ from typing import Any, Dict
 logger = logging.getLogger(__name__)
 
 class PerceptionData:
-    def __init__(self, visible_agents: int, anomaly: bool):
+    def __init__(self, visible_agents: int, anomaly: bool, terrain: str = "rocky basalt", weather: str = "clear skies"):
         self.visible_agents = visible_agents
         self.anomaly = anomaly
+        self.terrain = terrain
+        self.weather = weather
 
 class AgentOrchestrationService:
     """
@@ -92,11 +94,66 @@ class AgentOrchestrationService:
 
         logger.info(f"Finished cycle for agent: {agent.name}")
 
-    # --- Stubs for sub-routines ---
+    # --- Sub-routines ---
 
     async def _perceive(self, agent: Any) -> PerceptionData:
-        # Queries world_state:{shard_id} from Redis
-        return PerceptionData(visible_agents=2, anomaly=False)
+        """
+        Gathers raw physical data about the agent's immediate vicinity.
+        Queries the Redis 'CellCache' and 'GeographicRoom' representations
+        maintained by the Colyseus authoritative world server.
+        """
+        # Determine current agent grid cell (e.g. S2 cell resolution equivalent)
+        # Assuming agent.current_location is a dict with lat/lon/depth
+        lat = agent.current_location.get("lat", 0.0)
+        lon = agent.current_location.get("lon", 0.0)
+
+        # 1. Fetch Local Weather/World State
+        # (Usually published to Redis as 'world_state:shard_id' JSON blob by Colyseus EBM simulation)
+        weather_desc = "clear skies"
+        try:
+            world_state_json = await self.redis.get("world_state:global_01")
+            if world_state_json:
+                import json
+                state_data = json.loads(world_state_json)
+                weather_desc = state_data.get("environment", {}).get("weather", "clear skies")
+        except Exception as e:
+            logger.debug(f"Failed to fetch global weather state: {e}")
+
+        # 2. Fetch WCG Terrain/Chemistry Data
+        # Queries the Redis cache bridging the Rust ERS engine
+        # e.g., 'chem_cell:45:110:0:global_01'
+        terrain_desc = "rocky basalt"
+        try:
+            # Simplified localized grid stringifier
+            x, y, z = int(lat), int(lon), int(agent.current_location.get("depth", 0.0))
+            cell_key = f"chem_cell:{x}:{y}:{z}:global_01"
+            cell_json = await self.redis.get(cell_key)
+            if cell_json:
+                import json
+                cell_data = json.loads(cell_json)
+                comp = cell_data.get("composition", {})
+                dominant_elements = sorted(comp.items(), key=lambda item: item[1], reverse=True)[:3]
+                terrain_desc = f"{cell_data.get('phase_state', 'Solid')} terrain rich in {[e[0] for e in dominant_elements]}"
+        except Exception as e:
+            logger.debug(f"Failed to fetch localized chemistry cell state: {e}")
+
+        # 3. Discover Nearby Agents (Spatial Query / Area of Interest)
+        # Simplified: Assuming Colyseus pushes a set of nearby agents per shard
+        visible_agents = 0
+        try:
+            agents_set = await self.redis.smembers("active_agents:global_01")
+            # If spatial logic existed here, we would measure distance between vectors.
+            # Assuming everyone in shard is visible for demo
+            visible_agents = max(0, len(agents_set) - 1)
+        except Exception as e:
+            pass
+
+        return PerceptionData(
+            visible_agents=visible_agents,
+            anomaly=False,
+            terrain=terrain_desc,
+            weather=weather_desc
+        )
 
     async def _check_messages(self, agent_id: str) -> list:
         # Reads from agent-messages:{agent_id} Redis stream
