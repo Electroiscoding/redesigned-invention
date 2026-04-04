@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Suspense, useState, useEffect, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment, Sky } from '@react-three/drei';
 import { EffectComposer, Bloom, DepthOfField, Noise, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
@@ -12,6 +12,45 @@ import { VolumetricAtmos } from '../../../components/renderer/VolumetricAtmos';
 import { AgentMindPanel } from '../../../components/ui/AgentMindPanel';
 import { ReasoningStream } from '../../../components/ui/ReasoningStream';
 import { ChemInspector } from '../../../components/ui/ChemInspector';
+
+function WASDControls() {
+  const { camera } = useThree();
+  const keys = useRef<{ [key: string]: boolean }>({});
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { keys.current[e.code] = true; };
+    const handleKeyUp = (e: KeyboardEvent) => { keys.current[e.code] = false; };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  useFrame((_, delta) => {
+    const speed = 500.0 * delta; // units per second
+
+    // Get current camera directions
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    forward.y = 0; // Keep movement on XZ plane
+    forward.normalize();
+
+    const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+
+    if (keys.current['KeyW']) camera.position.addScaledVector(forward, speed);
+    if (keys.current['KeyS']) camera.position.addScaledVector(forward, -speed);
+    if (keys.current['KeyA']) camera.position.addScaledVector(right, -speed);
+    if (keys.current['KeyD']) camera.position.addScaledVector(right, speed);
+    if (keys.current['Space']) camera.position.y += speed;
+    if (keys.current['ShiftLeft']) camera.position.y -= speed;
+  });
+
+  return null;
+}
 
 export default function ObserverPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>("agent-001");
@@ -30,6 +69,7 @@ export default function ObserverPage() {
             <p className="text-xs text-gray-400">Simulation Time: Day 4, 14:02</p>
             <p className="text-xs text-gray-400">Active Agents: 1,000</p>
             <p className="text-xs text-gray-400">Global TSF: 24.0x</p>
+            <p className="text-[10px] text-gray-500 mt-2">WASD to Move, SPACE/SHIFT to elevate. Mouse to look.</p>
           </div>
 
           {inspectedCell && <ChemInspector cellCoords={inspectedCell} />}
@@ -56,6 +96,8 @@ export default function ObserverPage() {
         gl={{ antialias: false, powerPreference: "high-performance" }} // Rely on TAA/post-processing
       >
         <color attach="background" args={['#000000']} />
+
+        <WASDControls />
 
         {/* Lighting & Environment */}
         <ambientLight intensity={0.2} />
@@ -84,7 +126,7 @@ export default function ObserverPage() {
 
         {/* Navigation */}
         <OrbitControls
-          enablePan={true}
+          enablePan={false}
           enableZoom={true}
           enableRotate={true}
           maxDistance={50000}

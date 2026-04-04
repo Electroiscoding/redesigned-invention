@@ -160,7 +160,36 @@ class AgentOrchestrationService:
         return []
 
     def _assess_cognitive_state(self, perception: PerceptionData, messages: list, agent: Any) -> Any:
-        return agent.cognitive_state
+        """
+        State Machine hook determining the agent's immediate cognitive load.
+        Mutates agent goal stack based on anomalies/emergencies.
+        """
+        from core.types import AgentCognitiveState
+
+        # 1. High priority: Emergency overrides
+        if perception.anomaly:
+            if "Investigate Anomaly" not in agent.goal_stack:
+                agent.goal_stack.insert(0, "Investigate Anomaly")
+                logger.info(f"[{agent.name}] Pushed 'Investigate Anomaly' to goal stack.")
+            return AgentCognitiveState.EMERGENCY
+
+        # 2. Medium priority: Incoming social interactions
+        urgent_messages = [m for m in messages if isinstance(m, dict) and m.get("urgency") == "HIGH"]
+        if urgent_messages:
+            return AgentCognitiveState.COMMUNICATING
+
+        # 3. Deliberation trigger
+        # E.g. high curiosity or very full goal stack requiring re-prioritization
+        curiosity = agent.emotional_state.get("curiosity", 0.5)
+        if curiosity > 0.8 and len(agent.goal_stack) > 3:
+            return AgentCognitiveState.DELIBERATING
+
+        # 4. Resting State (Conserve API Tokens)
+        # If nothing happening and goals are met
+        if not messages and not agent.goal_stack:
+            return AgentCognitiveState.RESTING
+
+        return AgentCognitiveState.ACTIVE
 
     def _estimate_complexity(self, perception: PerceptionData, messages: list) -> float:
         complexity = len(messages) * 0.1
