@@ -28,10 +28,37 @@ class AgentChemistryInterface:
             return await self._execute_mine_element(agent, args)
         elif func_name == "react_materials":
             return await self._execute_react_materials(agent, args)
+        elif func_name == "knowledgebase_lookup":
+            return await self._execute_mcp_knowledgebase_lookup(agent, args)
         elif func_name == "observe_environment":
             return {"status": "success", "message": "Environment observed."}
         else:
             return {"status": "error", "message": f"Unknown tool function: {func_name}"}
+
+    async def _execute_mcp_knowledgebase_lookup(self, agent, args: dict) -> dict:
+        """
+        Implements the Model Context Protocol (MCP) spec pattern for agents
+        to proactively query external knowledge bases (e.g. the shared Community CKB)
+        when stuck on thermodynamic recipes.
+        """
+        query = args.get("query", "")
+        if not query:
+            return {"status": "error", "message": "Knowledgebase query cannot be empty."}
+
+        logger.info(f"[{agent.name}] MCP Knowledgebase Lookup: '{query}'")
+
+        # Stubbing out a Community Knowledge Base (CKB) response
+        # In a real setup, this triggers another HNSW pgvector search on the shared CKB table.
+        if "smelt" in query.lower() or "furnace" in query.lower():
+            return {
+                "status": "success",
+                "mcp_context": "Community Fact: Iron smelting requires breaking the Fe2O3 bond using a Carbon Monoxide (CO) reducing agent at temperatures exceeding 1400K. You must gather stone, clay, carbon (wood/coal), and build a bloomery."
+            }
+
+        return {
+            "status": "success",
+            "mcp_context": f"No definitive community knowledge found regarding '{query}'. You may need to experiment via trial and error."
+        }
 
     async def _execute_mine_element(self, agent, args: dict) -> dict:
         target_species = args.get("target_species", "")
