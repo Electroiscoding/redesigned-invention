@@ -15,10 +15,13 @@ export class WebTransportServer {
     const cert = process.env.TLS_CERT_PATH ? fs.readFileSync(process.env.TLS_CERT_PATH).toString() : 'dummy_cert';
 
     try {
+        const quicSecret = process.env.QUIC_SECRET;
+        if (!quicSecret) throw new Error("QUIC_SECRET not set in environment.");
+
         this.h3Server = new Http3Server({
         port: 4433,
         host: '0.0.0.0',
-        secret: 'my_secret_quic_key',
+        secret: quicSecret,
         cert,
         privKey: key,
         defaultDatagramsReadableMode: 'bytes',

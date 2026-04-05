@@ -1,0 +1,33 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Use Node.js 20
+      uses: actions/setup-node@v3
+      with:
+        node-version: 20
+        cache: 'npm'
+    - name: Install pnpm
+      run: npm install -g pnpm
+    - name: Install dependencies
+      run: pnpm install
+    - name: Lint and Format Check
+      run: pnpm run lint
+    - name: Build Web App
+      run: pnpm run build --filter="@paraearth/web"
+    - name: Run Rust Cargo Tests (ERS)
+      run: cargo test --manifest-path packages/ers-core/Cargo.toml
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+    - name: Run Playwright E2E Tests
+      run: npx playwright test
+      working-directory: apps/web
