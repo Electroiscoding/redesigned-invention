@@ -104,14 +104,57 @@ class EpisodicMemoryStore:
             logger.error(f"Error summarizing episodes: {e}")
             return ""
 
-    async def consolidate_memory(self, agent_id: str):
+    async def consolidate_memory(self, agent_id: str) -> bool:
         """
         Background task: Triggered when agent enters RESTING state.
-        Fetches the oldest unsummarized records, summarizes them, writes the summary
-        back with summary_level=1, and deletes the raw logs.
+        Fetches the oldest unsummarized records, summarizes them using a cheap LLM,
+        writes the narrative summary back with summary_level=1, and deletes the raw logs.
         """
-        # 1. Fetch 100 oldest summary_level=0 records
-        # 2. Call summarize_batch
-        # 3. Write new summary_level=1 record
-        # 4. Delete the 100 summary_level=0 records
-        pass
+        if not self.pool:
+            logger.debug(f"[Consolidation Stub] Consolidating memories for {agent_id}...")
+            return True
+
+        try:
+            # 1. Fetch 100 oldest summary_level=0 records for this agent
+            fetch_query = """
+                SELECT id, timestamp, content
+                FROM agent_episodic_memory
+                WHERE agent_id = $1 AND summary_level = 0
+                ORDER BY timestamp ASC
+                LIMIT 100;
+            """
+
+            # Using raw pool.fetch in production
+            records = await self.pool.fetch(fetch_query, agent_id)
+            if len(records) < 10:
+                logger.debug(f"Not enough records ({len(records)}) to consolidate for {agent_id}.")
+                return False
+
+            # 2. Call summarize_batch
+            record_dicts = [dict(r) for r in records]
+            summary_text = await self.summarize_batch(agent_id, record_dicts)
+
+            if not summary_text:
+                return False
+
+            # 3. Transaction: Write new summary_level=1 record and Delete old ones
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    insert_query = """
+                        INSERT INTO agent_episodic_memory (agent_id, timestamp, event_type, content, retention_score, summary_level)
+                        VALUES ($1, $2, 'CONSOLIDATED_SUMMARY', $3, 1.0, 1)
+                    """
+                    # Use timestamp of latest consolidated memory for the batch
+                    latest_timestamp = records[-1]['timestamp']
+                    await conn.execute(insert_query, agent_id, latest_timestamp, summary_text)
+
+                    record_ids = [r['id'] for r in records]
+                    delete_query = "DELETE FROM agent_episodic_memory WHERE id = ANY($1::int[])"
+                    await conn.execute(delete_query, record_ids)
+
+            logger.info(f"Successfully consolidated {len(records)} memories for {agent_id}.")
+            return True
+
+        except Exception as e:
+            logger.error(f"Memory consolidation failed for {agent_id}: {e}")
+            return False
