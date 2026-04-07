@@ -56,7 +56,18 @@ class AgentOrchestrationService:
             incoming_messages=messages
         )
 
-        # 6. Run Inference via OpenRouter API (Streaming Response)
+        # 6. Check for Philosophical Crisis (Deep Deliberation)
+        if agent.cognitive_state.value == "deliberating" and agent.emotional_state.get("curiosity", 0) > 0.9:
+            # Agent has encountered contradictory vectors or deeply complex tasks.
+            # We inject a specialized chain-of-thought prompt forcing the model to evaluate its
+            # worldview before attempting to interact with the environment.
+            context.messages.append({
+                "role": "user",
+                "content": "[SYSTEM OVERRIDE]: You are experiencing a philosophical crisis. Before making any tool calls, outline a detailed, multi-step hypothesis resolving the contradictions in your current knowledge base."
+            })
+            logger.info(f"[{agent.name}] Triggering deep philosophical crisis chain-of-thought.")
+
+        # 7. Run Inference via OpenRouter API (Streaming Response)
         tool_calls = []
         outgoing_messages = []
         reasoning_trace = ""
@@ -67,7 +78,7 @@ class AgentOrchestrationService:
             model=model_id,
             messages=context.to_messages(),
             tools=context.available_tools,
-            max_tokens=1024
+            max_tokens=2048 if agent.cognitive_state.value == "deliberating" else 1024
         ):
             if chunk.type == "tool_call":
                 tool_calls.append(chunk.tool_call)
@@ -76,7 +87,7 @@ class AgentOrchestrationService:
             elif chunk.type == "reasoning":
                 reasoning_trace += chunk.text
 
-        # 7. Execute validated Tool Calls in the World (ACI Sandbox)
+        # 8. Execute validated Tool Calls in the World (ACI Sandbox)
         action_results = []
         for tool_call in tool_calls:
             result = await self.aci.execute(agent, tool_call)
