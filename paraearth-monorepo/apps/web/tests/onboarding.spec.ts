@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('ParaEarth Onboarding Flow', () => {
   test('should securely submit API key, route to config, and launch simulation', async ({ page }) => {
     // 1. Visit the Vault Page
-    await page.goto('http://localhost:3000/vault');
+    await page.goto('http://localhost:3001/vault');
     await expect(page.locator('h2')).toHaveText('ParaEarth Vault');
 
     // 2. Submit Mock OpenRouter API Key
@@ -11,7 +11,7 @@ test.describe('ParaEarth Onboarding Flow', () => {
     await keyInput.fill('sk-or-v1-mock-test-key-123');
 
     // Intercept the API call to avoid needing the real backend running
-    await page.route('/api/session', async (route) => {
+    await page.route('**/api/session', async (route) => {
       const json = { success: true, token: 'mock-proxy-token', message: 'Secured.' };
       await route.fulfill({ json });
     });

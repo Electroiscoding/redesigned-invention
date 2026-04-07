@@ -88,24 +88,38 @@ async def health_check():
 async def get_reasoning_stream(agent_id: str):
     """
     Streams the live internal LLM monologue of an agent (Server-Sent Events).
-    In production, this attaches to the specific agent's inference loop.
-    Here we implement a robust stub simulating a stream of cognition tokens.
+    Subscribes to a Redis channel `agent-reasoning:{agent_id}` where the
+    Orchestrator loops are publishing chunks as they stream from OpenRouter.
     """
     async def event_generator():
-        mock_thoughts = [
-            "The ", "sun ", "is ", "setting. ", "I ", "need ", "to ", "find ",
-            "shelter ", "before ", "the ", "temperature ", "drops ", "below ",
-            "my ", "thermal ", "tolerance. ", "\n\n",
-            "According ", "to ", "my ", "episodic ", "memory, ", "there ", "is ",
-            "a ", "basalt ", "cave ", "200m ", "north.\n\n",
-            "<tool_call: move_to_location(lat=45.1, lon=-110.2)>"
-        ]
+        if not redis_client:
+            # Fallback mock generator
+            mock_thoughts = ["Fallback: ", "Redis ", "offline. ", "Cannot ", "stream ", "thoughts.\n\n"]
+            for token in mock_thoughts:
+                yield f"data: {token}\n\n"
+                await asyncio.sleep(0.1)
+            return
 
-        for token in mock_thoughts:
+        pubsub = redis_client.pubsub()
+        channel = f"agent-reasoning:{agent_id}"
+        await pubsub.subscribe(channel)
+
+        try:
+            logger.info(f"SSE Client subscribed to {channel}")
             # Yield SSE format: data: <payload>\n\n
-            yield f"data: {token}\n\n"
-            # Simulate real-time LLM token generation latency (20ms - 100ms)
-            await asyncio.sleep(random.uniform(0.02, 0.1))
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    chunk = message["data"].decode("utf-8")
+                    yield f"data: {chunk}\n\n"
+                    # Exit loop if we receive a special EOF token from the orchestrator
+                    if chunk.strip() == "[END_OF_CYCLE]":
+                        break
+        except asyncio.CancelledError:
+            logger.info(f"SSE stream cancelled for {agent_id}.")
+        except Exception as e:
+            logger.error(f"Error streaming reasoning for {agent_id}: {e}")
+        finally:
+            await pubsub.unsubscribe(channel)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
