@@ -3,6 +3,9 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "node",
+    "ts-node": {
+      "esm": true
+    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
